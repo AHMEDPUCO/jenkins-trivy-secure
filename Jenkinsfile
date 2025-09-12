@@ -2,9 +2,10 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "ahmedpuco/myapp"
+        IMAGE_NAME = "ahmedpuco/myapp"  // ⬅️ ¡CAMBIA ESTO!
         IMAGE_TAG = "build-${BUILD_NUMBER}"
         IMAGE_SCANNED_TAG = "scanned-latest"
+        SCAN_PASSED = "false"  // Inicializado como false
     }
 
     stages {
@@ -17,7 +18,9 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    docker.build("${IMAGE_NAME}:${IMAGE_TAG}")
+                    // Usa Docker Pipeline Plugin — no requiere 'docker' CLI
+                    env.BUILT_IMAGE = docker.build("${IMAGE_NAME}:${IMAGE_TAG}")
+                    echo "✅ Imagen construida: ${IMAGE_NAME}:${IMAGE_TAG}"
                 }
             }
         }
@@ -28,13 +31,14 @@ pipeline {
                 if ! command -v trivy &> /dev/null; then
                     echo "Installing Trivy..."
                     sudo apt-get update -y
-                    sudo apt-get install wget apt-transport-https gnupg -y
+                    sudo apt-get install wget apt-transport-https gnupg lsb-release -y
                     wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
                     echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | sudo tee -a /etc/apt/sources.list.d/trivy.list
                     sudo apt-get update
                     sudo apt-get install trivy -y
+                    echo "✅ Trivy installed."
                 else
-                    echo "Trivy already installed."
+                    echo "✅ Trivy already installed."
                 fi
                 '''
             }
@@ -44,6 +48,7 @@ pipeline {
             steps {
                 script {
                     try {
+                        // Escanea la imagen construida
                         sh "trivy image --exit-code 1 --severity CRITICAL,HIGH --ignore-unfixed ${IMAGE_NAME}:${IMAGE_TAG}"
                         echo "✅ ¡Imagen segura! Sin vulnerabilidades críticas."
                         env.SCAN_PASSED = "true"
@@ -63,9 +68,17 @@ pipeline {
             steps {
                 script {
                     docker.withRegistry('https://registry.hub.docker.com', 'dockerhub-creds') {
+                        // Push de la imagen original
+                        env.BUILT_IMAGE.push()
+
+                        // Taggear como "scanned-latest"
                         sh "docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:${IMAGE_SCANNED_TAG}"
-                        docker.image("${IMAGE_NAME}:${IMAGE_TAG}").push()
-                        docker.image("${IMAGE_NAME}:${IMAGE_SCANNED_TAG}").push()
+
+                        // Obtener la imagen taggeada y hacer push
+                        def scannedImage = docker.image("${IMAGE_NAME}:${IMAGE_SCANNED_TAG}")
+                        scannedImage.push()
+
+                        echo "✅ Imágenes subidas: ${IMAGE_NAME}:${IMAGE_TAG} y ${IMAGE_NAME}:${IMAGE_SCANNED_TAG}"
                     }
                 }
             }
@@ -77,14 +90,14 @@ pipeline {
             }
             steps {
                 sh '''
-                # Asegúrate de que kubectl está disponible y configurado
+                # Verificar conexión con Kubernetes
                 kubectl version --short
 
-                # Generar deployment.yaml dinámicamente
+                # Generar deployment.yaml dinámicamente con la etiqueta de seguridad
                 cat <<EOF > deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
-metadata:
+meta
   name: myapp
 spec:
   replicas: 1
@@ -92,10 +105,10 @@ spec:
     matchLabels:
       app: myapp
   template:
-    metadata:
+    meta
       labels:
         app: myapp
-        security.verified: "true"   # <-- Etiqueta requerida por Kyverno
+        security.verified: "true"   # <-- Requerido por Kyverno
     spec:
       containers:
       - name: myapp
@@ -105,7 +118,7 @@ spec:
 ---
 apiVersion: v1
 kind: Service
-metadata:
+meta
   name: myapp-service
 spec:
   selector:
@@ -117,8 +130,10 @@ spec:
   type: LoadBalancer
 EOF
 
-                # Aplicar en Kubernetes
+                # Aplicar manifiesto en Kubernetes
                 kubectl apply -f deployment.yaml
+
+                echo "✅ Despliegue en Kubernetes completado."
                 '''
             }
         }
@@ -126,10 +141,10 @@ EOF
 
     post {
         success {
-            echo "✅ Pipeline completado con éxito. Imagen escaneada y desplegada."
+            echo "🎉 ¡Pipeline completado con éxito! Imagen escaneada y desplegada."
         }
         failure {
-            echo "❌ Pipeline fallido. Revisa los logs de Trivy."
+            echo "💥 Pipeline fallido. Revisa los logs de Trivy o las etapas anteriores."
         }
     }
 }
