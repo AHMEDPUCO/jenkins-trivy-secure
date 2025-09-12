@@ -1,36 +1,23 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:base"
-  ],
+  "extends": ["config:base"],
+  "automerge": true,
+  "platformAutomerge": true,
+  "labels": ["dependencies", "renovate"],
+  "reviewers": ["AHMEDPUCO"],
+  "assignees": ["AHMEDPUCO"],
+  "docker": {
+    "pinDigests": false
+  },
   "packageRules": [
     {
-      "matchPackagePatterns": ["*"],
-      "matchUpdateTypes": ["minor", "patch"],
-      "automerge": true,
-      "platformAutomerge": true
+      "matchUpdateTypes": ["patch", "minor"],
+      "automerge": true
     },
     {
       "matchPackagePatterns": ["nginx", "alpine"],
       "matchUpdateTypes": ["major"],
       "enabled": false
-    }
-  ],
-  "docker": {
-    "pinDigests": false
-  },
-  "labels": ["dependencies", "renovate"],
-  "reviewers": ["AHMEDPUCO"],
-  "assignees": ["AHMEDPUCO"]
-}
-{
-  "extends": ["config:base"],
-  "automerge": true,
-  "platformAutomerge": true,
-  "packageRules": [
-    {
-      "matchUpdateTypes": ["patch", "minor"],
-      "automerge": true
     }
   ]
 }
