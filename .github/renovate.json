@@ -23,3 +23,14 @@
   "reviewers": ["AHMEDPUCO"],
   "assignees": ["AHMEDPUCO"]
 }
+{
+  "extends": ["config:base"],
+  "automerge": true,
+  "platformAutomerge": true,
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["patch", "minor"],
+      "automerge": true
+    }
+  ]
+}
